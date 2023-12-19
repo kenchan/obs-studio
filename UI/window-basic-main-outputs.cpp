@@ -17,7 +17,6 @@ volatile bool recording_paused = false;
 volatile bool replaybuf_active = false;
 volatile bool virtualcam_active = false;
 
-#define FTL_PROTOCOL "ftl"
 #define RTMP_PROTOCOL "rtmp"
 
 static void OBSStreamStarting(void *data, calldata_t *params)

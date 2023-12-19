@@ -587,9 +587,6 @@ QString OBSBasicSettings::FindProtocol()
 		    server.startsWith("rtmps://"))
 			return QString("RTMPS");
 
-		if (server.startsWith("ftl://"))
-			return QString("FTL");
-
 		if (server.startsWith("srt://"))
 			return QString("SRT");
 
