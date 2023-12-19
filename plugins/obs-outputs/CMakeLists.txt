@@ -69,6 +69,4 @@ elseif(OS_MACOS)
   # cmake-format: on
 endif()
 
-include(cmake/ftl.cmake)
-
 set_target_properties_obs(obs-outputs PROPERTIES FOLDER plugins PREFIX "")
