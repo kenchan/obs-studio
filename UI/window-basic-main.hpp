@@ -144,6 +144,13 @@ private:
 	std::unique_ptr<Ui::ColorSelect> ui;
 };
 
+struct MultitrackVideoViewInfo {
+	std::string name;
+	multitrack_video_start_cb start_video = nullptr;
+	multitrack_video_stop_cb stop_video = nullptr;
+	void *param = nullptr;
+};
+
 class OBSBasic : public OBSMainWindow {
 	Q_OBJECT
 	Q_PROPERTY(QIcon imageIcon READ GetImageIcon WRITE SetImageIcon
@@ -232,6 +239,8 @@ private:
 	std::vector<VolControl *> volumes;
 
 	std::vector<OBSSignal> signalHandlers;
+
+	std::vector<MultitrackVideoViewInfo> multitrackVideoViews;
 
 	QList<QPointer<QDockWidget>> oldExtraDocks;
 	QStringList oldExtraDockNames;
@@ -1049,6 +1058,9 @@ public:
 	QColor GetSelectionColor() const;
 	inline bool Closing() { return closing; }
 
+	const std::vector<MultitrackVideoViewInfo> &
+	GetAdditionalMultitrackVideoViews();
+
 protected:
 	virtual void closeEvent(QCloseEvent *event) override;
 	virtual bool nativeEvent(const QByteArray &eventType, void *message,
@@ -1236,6 +1248,12 @@ private slots:
 
 	void RepairOldExtraDockName();
 	void RepairCustomExtraDockName();
+
+	void MultitrackVideoRegister(const char *name,
+				     multitrack_video_start_cb start_video,
+				     multitrack_video_stop_cb stop_video,
+				     void *param);
+	void MultitrackVideoUnregister(const char *name);
 
 public slots:
 	void on_actionResetTransform_triggered();
