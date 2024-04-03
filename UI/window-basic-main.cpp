@@ -340,6 +340,30 @@ OBSBasic::OBSBasic(QWidget *parent)
 	connect(ui->modeSwitch, &QAbstractButton::clicked, this,
 		&OBSBasic::TogglePreviewProgramMode);
 
+	/* Set up recording connections */
+	connect(
+		this, &OBSBasic::RecordingStarted, this,
+		[this]() {
+			this->recordingStarted = true;
+			this->recordingPaused = false;
+		},
+		Qt::DirectConnection);
+	connect(
+		this, &OBSBasic::RecordingPaused, this,
+		[this]() { this->recordingPaused = true; },
+		Qt::DirectConnection);
+	connect(
+		this, &OBSBasic::RecordingUnpaused, this,
+		[this]() { this->recordingPaused = false; },
+		Qt::DirectConnection);
+	connect(
+		this, &OBSBasic::RecordingStopped, this,
+		[this]() {
+			this->recordingStarted = false;
+			this->recordingPaused = false;
+		},
+		Qt::DirectConnection);
+
 	startingDockLayout = saveState();
 
 	statsDock = new OBSDock();
@@ -1977,6 +2001,8 @@ void OBSBasic::ResetOutputs()
 		if (sysTrayReplayBuffer)
 			sysTrayReplayBuffer->setEnabled(
 				!!outputHandler->replayBuffer);
+
+		UpdateIsRecordingPausable();
 	} else {
 		outputHandler->Update();
 	}
@@ -2785,10 +2811,10 @@ void OBSBasic::CreateHotkeys()
 		"OBSBasic.StartRecording", Str("Basic.Main.StartRecording"),
 		"OBSBasic.StopRecording", Str("Basic.Main.StopRecording"),
 		MAKE_CALLBACK(!basic.outputHandler->RecordingActive() &&
-				      !basic.ui->recordButton->isChecked(),
+				      !basic.recordingStarted,
 			      basic.StartRecording, "Starting recording"),
 		MAKE_CALLBACK(basic.outputHandler->RecordingActive() &&
-				      basic.ui->recordButton->isChecked(),
+				      basic.recordingStarted,
 			      basic.StopRecording, "Stopping recording"),
 		this, this);
 	LoadHotkeyPair(recordingHotkeys, "OBSBasic.StartRecording",
@@ -2797,9 +2823,11 @@ void OBSBasic::CreateHotkeys()
 	pauseHotkeys = obs_hotkey_pair_register_frontend(
 		"OBSBasic.PauseRecording", Str("Basic.Main.PauseRecording"),
 		"OBSBasic.UnpauseRecording", Str("Basic.Main.UnpauseRecording"),
-		MAKE_CALLBACK(basic.pause && !basic.pause->isChecked(),
+		MAKE_CALLBACK(basic.isRecordingPausable &&
+				      !basic.recordingPaused,
 			      basic.PauseRecording, "Pausing recording"),
-		MAKE_CALLBACK(basic.pause && basic.pause->isChecked(),
+		MAKE_CALLBACK(basic.isRecordingPausable &&
+				      basic.recordingPaused,
 			      basic.UnpauseRecording, "Unpausing recording"),
 		this, this);
 	LoadHotkeyPair(pauseHotkeys, "OBSBasic.PauseRecording",
@@ -7722,6 +7750,7 @@ void OBSBasic::StopRecording()
 void OBSBasic::RecordingStart()
 {
 	ui->statusbar->RecordingStarted(outputHandler->fileOutput);
+	emit RecordingStarted();
 	ui->recordButton->setText(QTStr("Basic.Main.StopRecording"));
 	ui->recordButton->setChecked(true);
 
@@ -7744,6 +7773,7 @@ void OBSBasic::RecordingStart()
 void OBSBasic::RecordingStop(int code, QString last_error)
 {
 	ui->statusbar->RecordingStopped();
+	emit RecordingStopped();
 	ui->recordButton->setText(QTStr("Basic.Main.StartRecording"));
 	ui->recordButton->setChecked(false);
 
@@ -10720,7 +10750,8 @@ void OBSBasic::UpdatePatronJson(const QString &text, const QString &error)
 
 void OBSBasic::PauseRecording()
 {
-	if (!pause || !outputHandler || !outputHandler->fileOutput ||
+	if (!isRecordingPausable || !outputHandler ||
+	    !outputHandler->fileOutput ||
 	    os_atomic_load_bool(&recording_paused))
 		return;
 
@@ -10729,6 +10760,7 @@ void OBSBasic::PauseRecording()
 	if (obs_output_pause(output, true)) {
 		os_atomic_set_bool(&recording_paused, true);
 
+		emit RecordingPaused();
 		pause->setAccessibleName(QTStr("Basic.Main.UnpauseRecording"));
 		pause->setToolTip(QTStr("Basic.Main.UnpauseRecording"));
 		pause->blockSignals(true);
@@ -10766,7 +10798,8 @@ void OBSBasic::PauseRecording()
 
 void OBSBasic::UnpauseRecording()
 {
-	if (!pause || !outputHandler || !outputHandler->fileOutput ||
+	if (!isRecordingPausable || !outputHandler ||
+	    !outputHandler->fileOutput ||
 	    !os_atomic_load_bool(&recording_paused))
 		return;
 
@@ -10775,6 +10808,7 @@ void OBSBasic::UnpauseRecording()
 	if (obs_output_pause(output, false)) {
 		os_atomic_set_bool(&recording_paused, false);
 
+		emit RecordingUnpaused();
 		pause->setAccessibleName(QTStr("Basic.Main.PauseRecording"));
 		pause->setToolTip(QTStr("Basic.Main.PauseRecording"));
 		pause->blockSignals(true);
@@ -10809,7 +10843,8 @@ void OBSBasic::UnpauseRecording()
 
 void OBSBasic::PauseToggled()
 {
-	if (!pause || !outputHandler || !outputHandler->fileOutput)
+	if (!isRecordingPausable || !outputHandler ||
+	    !outputHandler->fileOutput)
 		return;
 
 	obs_output_t *output = outputHandler->fileOutput;
@@ -10821,16 +10856,11 @@ void OBSBasic::PauseToggled()
 		UnpauseRecording();
 }
 
-void OBSBasic::UpdatePause(bool activate)
+void OBSBasic::UpdateIsRecordingPausable()
 {
-	if (!activate || !outputHandler || !outputHandler->RecordingActive()) {
-		pause.reset();
-		return;
-	}
-
 	const char *mode = config_get_string(basicConfig, "Output", "Mode");
 	bool adv = astrcmpi(mode, "Advanced") == 0;
-	bool shared;
+	bool shared = true;
 
 	if (adv) {
 		const char *recType =
@@ -10850,7 +10880,17 @@ void OBSBasic::UpdatePause(bool activate)
 		shared = strcmp(quality, "Stream") == 0;
 	}
 
-	if (!shared) {
+	isRecordingPausable = !shared;
+}
+
+void OBSBasic::UpdatePause(bool activate)
+{
+	if (!activate || !outputHandler || !outputHandler->RecordingActive()) {
+		pause.reset();
+		return;
+	}
+
+	if (isRecordingPausable) {
 		pause.reset(new QPushButton());
 		pause->setAccessibleName(QTStr("Basic.Main.PauseRecording"));
 		pause->setToolTip(QTStr("Basic.Main.PauseRecording"));

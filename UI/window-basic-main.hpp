@@ -674,6 +674,10 @@ private:
 
 	void UpdatePreviewOverflowSettings();
 
+	bool recordingStarted = false;
+	bool isRecordingPausable = false;
+	bool recordingPaused = false;
+
 	bool restartingVCam = false;
 
 public slots:
@@ -878,6 +882,7 @@ private:
 
 	void AutoRemux(QString input, bool no_show = false);
 
+	void UpdateIsRecordingPausable();
 	void UpdatePause(bool activate = true);
 	void UpdateReplayBuffer(bool activate = true);
 
@@ -1248,6 +1253,12 @@ public slots:
 	void UpdateContextBarVisibility();
 
 signals:
+	/* Recording signals */
+	void RecordingStarted();
+	void RecordingPaused();
+	void RecordingUnpaused();
+	void RecordingStopped();
+
 	/* Studio Mode signal */
 	void PreviewProgramModeChanged(bool enabled);
 
