@@ -340,6 +340,20 @@ OBSBasic::OBSBasic(QWidget *parent)
 	connect(ui->modeSwitch, &QAbstractButton::clicked, this,
 		&OBSBasic::TogglePreviewProgramMode);
 
+	/* Set up streaming connections */
+	connect(
+		this, &OBSBasic::StreamingStarting, this,
+		[this] { this->streamingStarting = true; },
+		Qt::DirectConnection);
+	connect(
+		this, &OBSBasic::StreamingStarted, this,
+		[this] { this->streamingStarting = false; },
+		Qt::DirectConnection);
+	connect(
+		this, &OBSBasic::StreamingStopped, this,
+		[this] { this->streamingStarting = false; },
+		Qt::DirectConnection);
+
 	/* Set up recording connections */
 	connect(
 		this, &OBSBasic::RecordingStarted, this,
@@ -2786,10 +2800,10 @@ void OBSBasic::CreateHotkeys()
 		"OBSBasic.StartStreaming", Str("Basic.Main.StartStreaming"),
 		"OBSBasic.StopStreaming", Str("Basic.Main.StopStreaming"),
 		MAKE_CALLBACK(!basic.outputHandler->StreamingActive() &&
-				      basic.ui->streamButton->isEnabled(),
+				      !basic.streamingStarting,
 			      basic.StartStreaming, "Starting stream"),
 		MAKE_CALLBACK(basic.outputHandler->StreamingActive() &&
-				      basic.ui->streamButton->isEnabled(),
+				      !basic.streamingStarting,
 			      basic.StopStreaming, "Stopping stream"),
 		this, this);
 	LoadHotkeyPair(streamingHotkeys, "OBSBasic.StartStreaming",
@@ -6878,6 +6892,8 @@ void OBSBasic::DisplayStreamStartError()
 	QString message = !outputHandler->lastError.empty()
 				  ? QTStr(outputHandler->lastError.c_str())
 				  : QTStr("Output.StartFailedGeneric");
+
+	emit StreamingStopped();
 	ui->streamButton->setText(QTStr("Basic.Main.StartStreaming"));
 	ui->streamButton->setEnabled(true);
 	ui->streamButton->setChecked(false);
@@ -7042,6 +7058,7 @@ void OBSBasic::StartStreaming()
 
 	SaveProject();
 
+	emit StreamingStarting();
 	ui->streamButton->setEnabled(false);
 	ui->streamButton->setChecked(false);
 	ui->streamButton->setText(QTStr("Basic.Main.Connecting"));
@@ -7410,6 +7427,7 @@ void OBSBasic::ForceStopStreaming()
 
 void OBSBasic::StreamDelayStarting(int sec)
 {
+	emit StreamingStarted();
 	ui->streamButton->setText(QTStr("Basic.Main.StopStreaming"));
 	ui->streamButton->setEnabled(true);
 	ui->streamButton->setChecked(true);
@@ -7436,6 +7454,7 @@ void OBSBasic::StreamDelayStarting(int sec)
 
 void OBSBasic::StreamDelayStopping(int sec)
 {
+	emit StreamingStopped();
 	ui->streamButton->setText(QTStr("Basic.Main.StartStreaming"));
 	ui->streamButton->setEnabled(true);
 	ui->streamButton->setChecked(false);
@@ -7463,6 +7482,7 @@ void OBSBasic::StreamDelayStopping(int sec)
 
 void OBSBasic::StreamingStart()
 {
+	emit StreamingStarted();
 	ui->streamButton->setText(QTStr("Basic.Main.StopStreaming"));
 	ui->streamButton->setEnabled(true);
 	ui->streamButton->setChecked(true);
@@ -7565,6 +7585,7 @@ void OBSBasic::StreamingStop(int code, QString last_error)
 
 	ui->statusbar->StreamStopped();
 
+	emit StreamingStopped();
 	ui->streamButton->setText(QTStr("Basic.Main.StartStreaming"));
 	ui->streamButton->setEnabled(true);
 	ui->streamButton->setChecked(false);
