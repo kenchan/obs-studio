@@ -551,23 +551,29 @@ static void copy_info_to_settings(json_t *service, obs_data_t *settings)
 				    "Multitrack Video");
 	}
 
-	if (strcmp(name, "Twitch") == 0) {
-		obs_data_set_string(
-			settings, "ertmp_multitrack_video_disclaimer",
-			obs_module_text("MultitrackVideo.TwitchDisclaimer"));
-	} else {
-		struct dstr str;
-		dstr_init_copy(&str,
-			       obs_module_text("MultitrackVideo.Disclaimer"));
-		dstr_replace(&str, "%1",
-			     obs_data_get_string(
-				     settings, "ertmp_multitrack_video_name"));
-		dstr_replace(&str, "%2", name);
-		obs_data_set_string(settings,
-				    "ertmp_multitrack_video_disclaimer",
-				    str.array);
-		dstr_free(&str);
+	const char *learn_more_link_url =
+		get_string_val(service, "ertmp_configuration_learn_more_link");
+	struct dstr learn_more_link = {0};
+	if (learn_more_link_url) {
+		dstr_init_copy(
+			&learn_more_link,
+			obs_module_text("MultitrackVideo.LearnMoreLink"));
+		dstr_replace(&learn_more_link, "%1", learn_more_link_url);
 	}
+
+	struct dstr str;
+	dstr_init_copy(&str, obs_module_text("MultitrackVideo.Disclaimer"));
+	dstr_replace(&str, "%1",
+		     obs_data_get_string(settings,
+					 "ertmp_multitrack_video_name"));
+	dstr_replace(&str, "%2", name);
+	if (learn_more_link.array) {
+		dstr_cat(&str, learn_more_link.array);
+	}
+	obs_data_set_string(settings, "ertmp_multitrack_video_disclaimer",
+			    str.array);
+	dstr_free(&learn_more_link);
+	dstr_free(&str);
 
 	update_protocol(service, settings);
 }
