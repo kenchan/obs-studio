@@ -3,11 +3,17 @@
 
 #include <obs.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include "window-basic-auto-config.hpp"
 #include "window-basic-main.hpp"
 #include "qt-wrappers.hpp"
 #include "obs-app.hpp"
 #include "url-push-button.hpp"
+
+#include "goliveapi-postdata.hpp"
+#include "goliveapi-network.hpp"
+#include "multitrack-video-error.hpp"
 
 #include "ui_AutoConfigStartPage.h"
 #include "ui_AutoConfigVideoPage.h"
@@ -260,6 +266,7 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 	ui->bitrate->setVisible(false);
 	ui->connectAccount2->setVisible(false);
 	ui->disconnectAccount->setVisible(false);
+	ui->useMultitrackVideo->setVisible(false);
 
 	ui->connectedAccountLabel->setVisible(false);
 	ui->connectedAccountText->setVisible(false);
@@ -408,6 +415,84 @@ bool AutoConfigStreamPage::validatePage()
 			wiz->service = AutoConfig::Service::Other;
 	} else {
 		wiz->service = AutoConfig::Service::Other;
+	}
+
+	if (wiz->service == AutoConfig::Service::Twitch) {
+		wiz->testMultitrackVideo = ui->useMultitrackVideo->isChecked();
+
+		std::map<std::string, video_t *> extra_views;
+		auto postData = constructGoLivePost(
+			QString::fromStdString(wiz->key), std::nullopt,
+			std::nullopt, false, extra_views);
+
+		try {
+			auto config = DownloadGoLiveConfig(
+				this, MultitrackVideoAutoConfigURL(service),
+				postData);
+
+			OBSDataArrayAutoRelease ingest_endpoints =
+				obs_data_get_array(config, "ingest_endpoints");
+			auto count = obs_data_array_count(ingest_endpoints);
+			for (size_t i = 0; i < count; i++) {
+				OBSDataAutoRelease item = obs_data_array_item(
+					ingest_endpoints, i);
+
+				std::string address = obs_data_get_string(
+					item, "url_template");
+				auto pos = address.find("/{stream_key}");
+				if (pos != address.npos)
+					address.erase(pos);
+
+				const char *name = address.c_str();
+				if (obs_data_has_user_value(item, "name")) {
+					name = obs_data_get_string(item,
+								   "name");
+				}
+
+				wiz->serviceConfigServers.push_back(
+					{name, std::move(address)});
+			}
+
+			OBSDataArrayAutoRelease encoder_configurations =
+				obs_data_get_array(config,
+						   "encoder_configurations");
+			int multitrackVideoBitrate = 0;
+			for (size_t i = 0, numConfigs = obs_data_array_count(
+						   encoder_configurations);
+			     i < numConfigs; i++) {
+				OBSDataAutoRelease encoder_configuration =
+					obs_data_array_item(
+						encoder_configurations, i);
+				multitrackVideoBitrate += obs_data_get_int(
+					encoder_configuration, "bitrate");
+			}
+
+			// grab a streamkey from the go live config if we can
+			for (size_t i = 0;
+			     i < obs_data_array_count(ingest_endpoints); i++) {
+				OBSDataAutoRelease item = obs_data_array_item(
+					ingest_endpoints, i);
+				const char *p =
+					obs_data_get_string(item, "protocol");
+				const char *auth = obs_data_get_string(
+					item, "authentication");
+				if (qstrnicmp("RTMP", p, 4) == 0 && auth &&
+				    *auth) {
+					wiz->key = auth;
+					break;
+				}
+			}
+
+			if (multitrackVideoBitrate > 0) {
+				wiz->startingBitrate = multitrackVideoBitrate;
+				wiz->idealBitrate = multitrackVideoBitrate;
+				wiz->multitrackVideo.targetBitrate =
+					multitrackVideoBitrate;
+				wiz->multitrackVideo.testSuccessful = true;
+			}
+		} catch (const MultitrackVideoError & /*err*/) {
+			// FIXME: do something sensible
+		}
 	}
 
 	if (wiz->service != AutoConfig::Service::Twitch &&
@@ -561,6 +646,22 @@ void AutoConfigStreamPage::on_useStreamKey_clicked()
 	UpdateCompleted();
 }
 
+void AutoConfigStreamPage::on_preferHardware_clicked()
+{
+	auto *main = OBSBasic::Get();
+	bool multitrackVideoEnabled =
+		config_has_user_value(main->Config(), "Stream1",
+				      "EnableMultitrackVideo")
+			? config_get_bool(main->Config(), "Stream1",
+					  "EnableMultitrackVideo")
+			: true;
+
+	ui->useMultitrackVideo->setEnabled(ui->preferHardware->isChecked());
+	ui->multitrackVideoInfo->setEnabled(ui->preferHardware->isChecked());
+	ui->useMultitrackVideo->setChecked(ui->preferHardware->isChecked() &&
+					   multitrackVideoEnabled);
+}
+
 static inline bool is_auth_service(const std::string &service)
 {
 	return Auth::AuthType(service) != Auth::Type::None;
@@ -626,6 +727,50 @@ void AutoConfigStreamPage::ServiceChanged()
 	bool regionBased = service == "Twitch";
 	bool testBandwidth = ui->doBandwidthTest->isChecked();
 	bool custom = IsCustomService();
+
+	bool ertmp_multitrack_video_available = service == "Twitch";
+
+	bool custom_disclaimer = false;
+	auto multitrack_video_name =
+		QTStr("Basic.Settings.Stream.MultitrackVideoLabel");
+	if (!custom) {
+		OBSDataAutoRelease service_settings = obs_data_create();
+		obs_data_set_string(service_settings, "service",
+				    service.c_str());
+		OBSServiceAutoRelease obs_service =
+			obs_service_create("rtmp_common", "temp service",
+					   service_settings, nullptr);
+
+		if (obs_data_has_user_value(service_settings,
+					    "ertmp_multitrack_video_name")) {
+			multitrack_video_name = obs_data_get_string(
+				service_settings,
+				"ertmp_multitrack_video_name");
+		}
+
+		if (obs_data_has_user_value(
+			    service_settings,
+			    "ertmp_multitrack_video_disclaimer")) {
+			ui->multitrackVideoInfo->setText(obs_data_get_string(
+				service_settings,
+				"ertmp_multitrack_video_disclaimer"));
+			custom_disclaimer = true;
+		}
+	}
+
+	if (!custom_disclaimer) {
+		ui->multitrackVideoInfo->setText(
+			QTStr("MultitrackVideo.Info")
+				.arg(multitrack_video_name, service.c_str()));
+	}
+
+	ui->multitrackVideoInfo->setVisible(ertmp_multitrack_video_available);
+	ui->useMultitrackVideo->setVisible(ertmp_multitrack_video_available);
+	ui->useMultitrackVideo->setText(
+		QTStr("Basic.AutoConfig.StreamPage.UseMultitrackVideo")
+			.arg(multitrack_video_name));
+	ui->multitrackVideoInfo->setEnabled(wiz->hardwareEncodingAvailable);
+	ui->useMultitrackVideo->setEnabled(wiz->hardwareEncodingAvailable);
 
 	reset_service_ui_fields(service);
 
@@ -977,12 +1122,21 @@ AutoConfig::AutoConfig(QWidget *parent) : QWizard(parent)
 	if (!key.empty())
 		streamPage->ui->key->setText(key.c_str());
 
+	TestHardwareEncoding();
+
 	int bitrate =
 		config_get_int(main->Config(), "SimpleOutput", "VBitrate");
+	bool multitrackVideoEnabled =
+		config_has_user_value(main->Config(), "Stream1",
+				      "EnableMultitrackVideo")
+			? config_get_bool(main->Config(), "Stream1",
+					  "EnableMultitrackVideo")
+			: true;
 	streamPage->ui->bitrate->setValue(bitrate);
+	streamPage->ui->useMultitrackVideo->setChecked(
+		hardwareEncodingAvailable && multitrackVideoEnabled);
 	streamPage->ServiceChanged();
 
-	TestHardwareEncoding();
 	if (!hardwareEncodingAvailable) {
 		delete streamPage->ui->preferHardware;
 		streamPage->ui->preferHardware = nullptr;
@@ -1142,6 +1296,33 @@ void AutoConfig::SaveStreamSettings()
 	config_set_string(main->Config(), "SimpleOutput", "StreamEncoder",
 			  GetEncoderId(streamingEncoder));
 	config_remove_value(main->Config(), "SimpleOutput", "UseAdvanced");
+
+	config_set_bool(main->Config(), "Stream1", "EnableMultitrackVideo",
+			multitrackVideo.testSuccessful);
+
+	if (multitrackVideo.targetBitrate.has_value())
+		config_set_int(main->Config(), "Stream1",
+			       "MultitrackVideoTargetBitrate",
+			       *multitrackVideo.targetBitrate);
+	else
+		config_remove_value(main->Config(), "Stream1",
+				    "MultitrackVideoTargetBitrate");
+
+	if (multitrackVideo.bitrate.has_value() &&
+	    multitrackVideo.targetBitrate.has_value() &&
+	    (static_cast<double>(*multitrackVideo.bitrate) /
+	     *multitrackVideo.targetBitrate) >= 0.90) {
+		config_set_bool(main->Config(), "Stream1",
+				"MultitrackVideoMaximumAggregateBitrateAuto",
+				true);
+	} else if (multitrackVideo.bitrate.has_value()) {
+		config_set_bool(main->Config(), "Stream1",
+				"MultitrackVideoMaximumAggregateBitrateAuto",
+				false);
+		config_set_int(main->Config(), "Stream1",
+			       "MultitrackVideoMaximumAggregateBitrate",
+			       *multitrackVideo.bitrate);
+	}
 }
 
 void AutoConfig::SaveSettings()
