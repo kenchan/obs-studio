@@ -50,13 +50,22 @@ public:
 		return current ? obs_output_get_ref(current->output_) : nullptr;
 	}
 
+	const std::vector<OBSEncoderAutoRelease> &VideoEncoders() const;
+
 private:
+	struct ExtraViewsGuard {
+		std::map<std::string, video_t *> views_;
+
+		~ExtraViewsGuard();
+	};
+
 	struct OBSOutputObjects {
 		OBSOutputAutoRelease output_;
 		std::vector<OBSEncoderAutoRelease> video_encoders_;
 		std::vector<OBSEncoderAutoRelease> audio_encoders_;
 		OBSServiceAutoRelease multitrack_video_service_;
 		OBSSignal start_signal, stop_signal, deactivate_signal;
+		std::shared_ptr<ExtraViewsGuard> extra_views_;
 	};
 
 	std::optional<OBSOutputObjects> take_current();

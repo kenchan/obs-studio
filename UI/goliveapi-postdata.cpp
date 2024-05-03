@@ -8,7 +8,8 @@ nlohmann::json
 constructGoLivePost(QString streamKey,
 		    const std::optional<uint64_t> &maximum_aggregate_bitrate,
 		    const std::optional<uint32_t> &maximum_video_tracks,
-		    bool vod_track_enabled)
+		    bool vod_track_enabled,
+		    const std::map<std::string, video_t *> &extra_views)
 {
 	using json = nlohmann::json;
 
@@ -36,6 +37,26 @@ constructGoLivePost(QString streamKey,
 
 		client["canvas_width"] = ovi.base_width;
 		client["canvas_height"] = ovi.base_height;
+	}
+
+	auto &json_extra_views = capabilities["extra_views"];
+	for (auto &video_output : extra_views) {
+		video_t *video = video_output.second;
+		if (!video)
+			continue;
+		const struct video_output_info *voi =
+			video_output_get_info(video);
+		if (!voi)
+			continue;
+
+		json view;
+		view["name"] = video_output.first.c_str();
+		view["canvas_width"] = voi->width;
+		view["canvas_height"] = voi->height;
+		view["fps_numerator"] = voi->fps_num;
+		view["fps_denominator"] = voi->fps_den;
+
+		json_extra_views.push_back(view);
 	}
 
 	auto &preferences = post_data["preferences"];
