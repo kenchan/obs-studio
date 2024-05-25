@@ -805,6 +805,7 @@ private slots:
 	void on_actionPasteFilters_triggered();
 	void AudioMixerCopyFilters();
 	void AudioMixerPasteFilters();
+	void SourceCopyFilters(OBSSource source);
 	void SourcePasteFilters(OBSSource source, OBSSource dstSource);
 
 	void ColorChange();
