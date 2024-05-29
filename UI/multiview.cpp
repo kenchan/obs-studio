@@ -17,6 +17,11 @@ Multiview::~Multiview()
 		if (src)
 			obs_source_dec_showing(src);
 	}
+	if (audioMeter)
+	{
+		delete audioMeter;
+		audioMeter = nullptr;
+	}
 
 	obs_enter_graphics();
 	gs_vertexbuffer_destroy(actionSafeMargin);
@@ -66,11 +71,13 @@ static OBSSource CreateLabel(const char *name, size_t h)
 }
 
 void Multiview::Update(MultiviewLayout multiviewLayout, bool drawLabel,
-		       bool drawSafeArea)
+		       bool drawSafeArea, bool drawAudioMeter,
+		       int selectedNewAudio)
 {
 	this->multiviewLayout = multiviewLayout;
 	this->drawLabel = drawLabel;
 	this->drawSafeArea = drawSafeArea;
+	this->drawAudioMeter = drawAudioMeter;
 
 	multiviewScenes.clear();
 	multiviewLabels.clear();
@@ -177,6 +184,18 @@ void Multiview::Update(MultiviewLayout multiviewLayout, bool drawLabel,
 
 		multiviewLabels.emplace_back(
 			CreateLabel(obs_source_get_name(src), h / 3));
+	}
+
+	if (this->drawAudioMeter) {
+		if (!audioMeter) {
+
+			audioMeter = new MultiviewAudioMeter();
+		}
+		audioMeter->ConnectAudioOutput(selectedNewAudio);
+	}
+	else {
+		delete audioMeter;
+		audioMeter = nullptr;
 	}
 
 	obs_frontend_source_list_free(&scenes);
@@ -556,6 +575,13 @@ void Multiview::Render(uint32_t cx, uint32_t cy)
 		gs_matrix_translate3f(0, thickness, 0.0f);
 		obs_source_video_render(programLabel);
 		gs_matrix_pop();
+	}
+
+	// Draw audioMeter on Program
+	if (drawAudioMeter) {
+		audioMeter->RenderAudioMeter(labelColor, sourceX, sourceY,
+					     ppiCX, ppiCY, ppiScaleX,
+					     ppiScaleY);
 	}
 
 	// Region for future usage with additional info.
