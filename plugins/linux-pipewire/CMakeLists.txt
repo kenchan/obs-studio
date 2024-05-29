@@ -36,7 +36,11 @@ target_sources(
           portal.c
           portal.h
           screencast-portal.c
-          screencast-portal.h)
+          screencast-portal.h
+          pipewire-audio.c
+          pipewire-audio.h
+          pipewire-audio-capture-device.c
+          pipewire-audio-capture-app.c)
 
 target_include_directories(linux-pipewire PRIVATE ${libdrm_include_directories})
 
