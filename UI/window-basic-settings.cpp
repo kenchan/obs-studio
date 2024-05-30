@@ -983,6 +983,7 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 
 	UpdateAutomaticReplayBufferCheckboxes();
 
+	App()->BlockFocusSignal(true);
 	App()->DisableHotkeys();
 
 	channelIndex = ui->channelSetup->currentIndex();
@@ -1017,6 +1018,7 @@ OBSBasicSettings::~OBSBasicSettings()
 	main->EnableOutputs(true);
 
 	App()->UpdateHotkeyFocusSetting();
+	App()->BlockFocusSignal(false);
 
 	EnableThreadedMessageBoxes(false);
 }
