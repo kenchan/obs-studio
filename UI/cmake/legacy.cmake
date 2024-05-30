@@ -71,6 +71,28 @@ find_package(CURL REQUIRED)
 add_subdirectory(frontend-plugins)
 add_executable(obs)
 
+if(NOT TARGET OBS::properties-view)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/shared/properties-view" "${CMAKE_BINARY_DIR}/shared/properties-view")
+endif()
+
+if(NOT TARGET OBS::qt-plain-text-edit)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/shared/qt/plain-text-edit" "${CMAKE_BINARY_DIR}/shared/qt/plain-text-edit")
+endif()
+
+if(NOT TARGET OBS::qt-slider-ignorewheel)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/shared/qt/slider-ignorewheel"
+                   "${CMAKE_BINARY_DIR}/shared/qt/slider-ignorewheel")
+endif()
+
+if(NOT TARGET OBS::qt-vertical-scroll-area)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/shared/qt/vertical-scroll-area"
+                   "${CMAKE_BINARY_DIR}/shared/qt/vertical-scroll-area")
+endif()
+
+if(NOT TARGET OBS::qt-wrappers)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/shared/qt/wrappers" "${CMAKE_BINARY_DIR}/shared/qt/wrappers")
+endif()
+
 find_qt(COMPONENTS Widgets Network Svg Xml COMPONENTS_LINUX Gui DBus)
 
 target_link_libraries(obs PRIVATE Qt::Widgets Qt::Svg Qt::Xml Qt::Network)
@@ -146,8 +168,6 @@ target_sources(
           platform.hpp
           qt-display.cpp
           qt-display.hpp
-          qt-wrappers.cpp
-          qt-wrappers.hpp
           ui-validation.cpp
           ui-validation.hpp
           multiview.cpp
@@ -168,8 +188,6 @@ target_sources(
           audio-encoders.hpp
           balance-slider.hpp
           clickable-label.hpp
-          double-slider.cpp
-          double-slider.hpp
           horizontal-scroll-area.cpp
           horizontal-scroll-area.hpp
           item-widget-helpers.cpp
@@ -189,11 +207,6 @@ target_sources(
           menu-button.cpp
           menu-button.hpp
           mute-checkbox.hpp
-          plain-text-edit.cpp
-          plain-text-edit.hpp
-          properties-view.cpp
-          properties-view.hpp
-          properties-view.moc.hpp
           record-button.cpp
           record-button.hpp
           remote-text.cpp
@@ -201,12 +214,8 @@ target_sources(
           scene-tree.cpp
           scene-tree.hpp
           screenshot-obj.hpp
-          slider-ignorewheel.cpp
-          slider-ignorewheel.hpp
           source-label.cpp
           source-label.hpp
-          spinbox-ignorewheel.cpp
-          spinbox-ignorewheel.hpp
           source-tree.cpp
           source-tree.hpp
           url-push-button.cpp
@@ -215,8 +224,6 @@ target_sources(
           undo-stack-obs.hpp
           volume-control.cpp
           volume-control.hpp
-          vertical-scroll-area.cpp
-          vertical-scroll-area.hpp
           visibility-item-widget.cpp
           visibility-item-widget.hpp)
 
@@ -287,8 +294,19 @@ target_compile_features(obs PRIVATE cxx_std_17)
 
 target_include_directories(obs PRIVATE ${CMAKE_SOURCE_DIR}/deps/json11)
 
-target_link_libraries(obs PRIVATE CURL::libcurl FFmpeg::avcodec FFmpeg::avutil FFmpeg::avformat OBS::libobs
-                                  OBS::frontend-api)
+target_link_libraries(
+  obs
+  PRIVATE CURL::libcurl
+          FFmpeg::avcodec
+          FFmpeg::avutil
+          FFmpeg::avformat
+          OBS::libobs
+          OBS::frontend-api
+          OBS::qt-wrappers
+          OBS::qt-plain-text-edit
+          OBS::qt-vertical-scroll-area
+          OBS::qt-slider-ignorewheel
+          OBS::properties-view)
 
 set_target_properties(obs PROPERTIES FOLDER "frontend")
 
