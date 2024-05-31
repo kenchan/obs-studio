@@ -687,7 +687,8 @@ void TextSource::LoadFileText()
 	}
 	mrb_state *mrb = mrb_open();
 	mrb_value mrb_result = mrb_load_string(mrb, file_text);
-	const char *result = mrb_string_value_ptr(mrb, mrb_result);
+	mrb_value mrb_result_str = mrb_funcall(mrb, mrb_result, "to_s", 0);
+	const char *result = mrb_string_value_ptr(mrb, mrb_result_str);
 	mrb_close(mrb);
 
 //	BPtr<char> file_text = os_quick_read_utf8_file(file.c_str());
