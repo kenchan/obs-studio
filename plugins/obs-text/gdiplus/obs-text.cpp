@@ -680,13 +680,17 @@ const char *TextSource::GetMainString(const char *str)
 
 void TextSource::LoadFileText()
 {
+	//const char *mrb_code = "(1 + 1).to_s";
+	char *file_text = os_quick_read_utf8_file(file.c_str());
+	if (file_text == NULL) {
+		return;
+	}
 	mrb_state *mrb = mrb_open();
-	const char *mrb_code = "(1 + 1).to_s";
-	mrb_value mrb_result = mrb_load_string(mrb, mrb_code);
+	mrb_value mrb_result = mrb_load_string(mrb, file_text);
 	const char *result = mrb_string_value_ptr(mrb, mrb_result);
 	mrb_close(mrb);
 
-	BPtr<char> file_text = os_quick_read_utf8_file(file.c_str());
+//	BPtr<char> file_text = os_quick_read_utf8_file(file.c_str());
 //	text = to_wide(GetMainString(file_text));
 	text = to_wide(GetMainString(result));
 
