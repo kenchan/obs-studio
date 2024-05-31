@@ -36,7 +36,7 @@ MODULE_EXPORT const char *obs_module_description(void)
 uint32_t texbuf_w = 2048, texbuf_h = 2048;
 
 static struct obs_source_info freetype2_source_info_v1 = {
-	.id = "text_ft2_source",
+	.id = "text_ft2_source-custom",
 	.type = OBS_SOURCE_TYPE_INPUT,
 	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CAP_OBSOLETE |
 			OBS_SOURCE_CUSTOM_DRAW,
@@ -121,7 +121,8 @@ void obs_module_unload(void)
 static const char *ft2_source_get_name(void *unused)
 {
 	UNUSED_PARAMETER(unused);
-	return obs_module_text("TextFreetype2");
+	return "Text Free Type 2 Custom";
+//        return obs_module_text("TextFreetype2");
 }
 
 static uint32_t ft2_source_get_width(void *data)

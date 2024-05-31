@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <sys/stat.h>
 #include "text-freetype2.h"
 #include "obs-convenience.h"
+#include <mruby.h>
 
 float offsets[16] = {-2.0f, 0.0f, 0.0f, -2.0f, 2.0f,  0.0f, 2.0f,  0.0f,
 		     0.0f,  2.0f, 0.0f, 2.0f,  -2.0f, 0.0f, -2.0f, 0.0f};
@@ -431,6 +432,9 @@ void load_text_from_file(struct ft2_source *srcdata, const char *filename)
 	tmp_read = bzalloc(filesize + 1);
 	bytes_read = fread(tmp_read, filesize, 1, tmp_file);
 	fclose(tmp_file);
+
+	mrb_state *mrb = mrb_open();
+	mrb_close(mrb);
 
 	if (srcdata->text != NULL) {
 		bfree(srcdata->text);
