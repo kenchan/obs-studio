@@ -9,6 +9,9 @@
 #include <string>
 #include <memory>
 #include <locale>
+#include <mruby.h>
+#include <mruby/compile.h>
+#include <mruby/string.h>
 
 using namespace std;
 using namespace Gdiplus;
@@ -677,8 +680,15 @@ const char *TextSource::GetMainString(const char *str)
 
 void TextSource::LoadFileText()
 {
+	mrb_state *mrb = mrb_open();
+	const char *mrb_code = "(1 + 1).to_s";
+	mrb_value mrb_result = mrb_load_string(mrb, mrb_code);
+	const char *result = mrb_string_value_ptr(mrb, mrb_result);
+	mrb_close(mrb);
+
 	BPtr<char> file_text = os_quick_read_utf8_file(file.c_str());
-	text = to_wide(GetMainString(file_text));
+//	text = to_wide(GetMainString(file_text));
+	text = to_wide(GetMainString(result));
 
 	if (!text.empty() && text.back() != '\n')
 		text.push_back('\n');
@@ -1137,7 +1147,7 @@ bool obs_module_load(void)
 	si.icon_type = OBS_ICON_TYPE_TEXT;
 
 	si.get_name = [](void *) {
-		return obs_module_text("TextGDIPlus");
+		return obs_module_text("TextGDIPlus Custom");
 	};
 	si.create = [](obs_data_t *settings, obs_source_t *source) {
 		return (void *)new TextSource(source, settings, true);

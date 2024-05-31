@@ -23,6 +23,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "text-freetype2.h"
 #include "obs-convenience.h"
 #include <mruby.h>
+#include <mruby/compile.h>
+#include <mruby/string.h>
+
 
 float offsets[16] = {-2.0f, 0.0f, 0.0f, -2.0f, 2.0f,  0.0f, 2.0f,  0.0f,
 		     0.0f,  2.0f, 0.0f, 2.0f,  -2.0f, 0.0f, -2.0f, 0.0f};
@@ -434,18 +437,26 @@ void load_text_from_file(struct ft2_source *srcdata, const char *filename)
 	fclose(tmp_file);
 
 	mrb_state *mrb = mrb_open();
-	mrb_close(mrb);
+	const char *mrb_code = "(1 + 1).to_s";
+	mrb_load_string(mrb, mrb_code);
+	//char *str_result = mrb_str_to_cstr(mrb, result);
 
 	if (srcdata->text != NULL) {
 		bfree(srcdata->text);
 		srcdata->text = NULL;
 	}
+	
 	srcdata->text = bzalloc((strlen(tmp_read) + 1) * sizeof(wchar_t));
 	os_utf8_to_wcs(tmp_read, strlen(tmp_read), srcdata->text,
 		       (strlen(tmp_read) + 1));
+		       
+	//srcdata->text = bzalloc((strlen(str_result) + 1) * sizeof(wchar_t));
+	//os_utf8_to_wcs(str_result, strlen(str_result), srcdata->text, (strlen(str_result) + 1));
 
 	remove_cr(srcdata->text);
 	bfree(tmp_read);
+//	bfree(str_result);
+	mrb_close(mrb);
 }
 
 void read_from_end(struct ft2_source *srcdata, const char *filename)
